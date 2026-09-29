@@ -4,8 +4,11 @@ const links = [
   { to: '/', label: 'Dashboard', icon: '📊' },
   { to: '/teams', label: 'Teams', icon: '👥' },
   { to: '/rounds', label: 'Rounds', icon: '📝' },
-  { to: '/scoring', label: 'Scoring', icon: '🏆' },
-  { to: '/live', label: 'Live', icon: '📺' },
+  { to: '/scoring', label: 'Scoring', icon: '🎯' },
+  { to: '/leaderboard', label: 'Leaderboard', icon: '🏆' },
+  { to: '/settings', label: 'Settings', icon: '⚙️' },
+  { to: '/results', label: 'Results', icon: '🏅' },
+  { to: '/live', label: 'Live Display', icon: '📺' },
 ];
 
 export default function Layout() {
@@ -39,7 +42,7 @@ export default function Layout() {
           ))}
         </nav>
         <div className="sidebar-footer">
-          <small>Business Quiz v1.0</small>
+          <small>Business Quiz v2.0</small>
         </div>
       </aside>
 
