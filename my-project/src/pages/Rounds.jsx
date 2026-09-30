@@ -210,10 +210,37 @@ export default function Rounds() {
               <div className="round-content-placeholder">
                 <h3>📖 Round Content</h3>
                 <p className="text-muted">
-                  {r.description || 'Content placeholder — to be configured by the organizer.'}
+                  {ri === 1
+                    ? 'Round 2: Identify the Logos & Rearrange the Business Tagline.'
+                    : ri === 3
+                    ? 'Round 4: Personality Identification (Steve Jobs, Colonel Sanders, Mukesh Ambani, Sundar Pichai, Ratan Tata, Bill Gates).'
+                    : r.description || 'Content placeholder — to be configured by the organizer.'}
                 </p>
+
+                {ri === 1 && (
+                  <div className="flex gap-2" style={{ marginTop: 12 }}>
+                    <a href="/round2-admin" className="btn primary small">
+                      🖼️ Open Round 2 Admin Control Panel
+                    </a>
+                    <a href="/round2" target="_blank" rel="noreferrer" className="btn ghost small">
+                      📱 Participant View
+                    </a>
+                  </div>
+                )}
+
+                {ri === 3 && (
+                  <div className="flex gap-2" style={{ marginTop: 12 }}>
+                    <a href="/round4-admin" className="btn primary small">
+                      👤 Open Round 4 Admin Control Panel
+                    </a>
+                    <a href="/round4" target="_blank" rel="noreferrer" className="btn ghost small">
+                      📱 Participant View
+                    </a>
+                  </div>
+                )}
+
                 {!editingRound && (
-                  <button className="btn ghost small" onClick={() => startEditRound(r)} style={{ marginTop: 8 }}>
+                  <button className="btn ghost small" onClick={() => startEditRound(r)} style={{ marginTop: 12 }}>
                     ✏️ Edit Round Settings
                   </button>
                 )}

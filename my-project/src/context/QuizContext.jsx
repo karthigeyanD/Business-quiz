@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { getApiUrl } from '../utils/api';
 import {
   addTeam,
   addQuestion,
@@ -94,6 +95,63 @@ export function QuizProvider({ children }) {
     refreshAudit();
     refreshLive();
   }, [refreshTeams, refreshRounds, refreshScores, refreshCompetition, refreshQualification, refreshScoringConfig, refreshAudit, refreshLive]);
+
+  // --- Auto-sync online exam server results & teams into QuizContext ---
+  const syncServerScores = useCallback(async () => {
+    try {
+      const apiUrl = getApiUrl();
+      const res = await fetch(`${apiUrl}/api/admin/results`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data || !Array.isArray(data.results)) return;
+
+      const currentRounds = getRounds();
+      const round1Id = currentRounds[0]?.id || 'round-1';
+      let updated = false;
+
+      const currentScores = getScores();
+
+      data.results.forEach((r) => {
+        if (r.teamId && r.score != null) {
+          const currentVal = currentScores[r.teamId]?.[round1Id];
+          if (currentVal !== r.score) {
+            setScoreDirect(r.teamId, round1Id, r.score);
+            updated = true;
+          }
+        }
+      });
+
+      if (updated) {
+        refreshScores();
+        refreshAudit();
+      }
+    } catch {}
+  }, [refreshScores, refreshAudit]);
+
+  const syncTeamsToServer = useCallback(async (teamList) => {
+    if (!teamList || teamList.length === 0) return;
+    try {
+      const apiUrl = getApiUrl();
+      await fetch(`${apiUrl}/api/admin/sync-teams`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teams: teamList }),
+      });
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (teams.length > 0) {
+      syncTeamsToServer(teams);
+    }
+    syncServerScores();
+
+    const interval = setInterval(() => {
+      syncServerScores();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [teams, syncTeamsToServer, syncServerScores]);
 
   // --- Team actions ---
 
