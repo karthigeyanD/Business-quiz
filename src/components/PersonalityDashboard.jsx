@@ -152,9 +152,27 @@ export default function PersonalityDashboard({
     dragOverItemRef.current = null;
   };
 
+  const activeUploadTargetRef = useRef(activeUploadTarget);
+  const draftQRef = useRef(draftQ);
+  const questionsRef = useRef(questions);
+
+  useEffect(() => {
+    activeUploadTargetRef.current = activeUploadTarget;
+  }, [activeUploadTarget]);
+
+  useEffect(() => {
+    draftQRef.current = draftQ;
+  }, [draftQ]);
+
+  useEffect(() => {
+    questionsRef.current = questions;
+  }, [questions]);
+
   // Image File & Paste processing
-  const processImageFileForTarget = useCallback((file, targetField = activeUploadTarget) => {
-    if (!file || (!file.type.startsWith('image/') && !file.type.includes('svg'))) return;
+  const processImageFileForTarget = useCallback((file, targetField = activeUploadTargetRef.current) => {
+    if (!file) return false;
+    const isImg = file.type.startsWith('image/') || file.type.includes('image') || file.type.includes('svg');
+    if (!isImg) return false;
 
     const reader = new FileReader();
     reader.onload = (evt) => {
@@ -165,30 +183,34 @@ export default function PersonalityDashboard({
           ? { ...prev, clueImage: dataUrl }
           : { ...prev, answerImage: dataUrl };
       });
-      showToast(`Uploaded ${targetField === 'clue' ? 'Clue' : 'Answer'} Image!`);
+      const nextTarget = targetField === 'clue' ? 'answer' : 'clue';
+      setActiveUploadTarget(nextTarget);
+      showToast(`✅ Uploaded ${targetField === 'clue' ? 'Clue' : 'Answer'} Image! (${nextTarget === 'answer' ? 'Answer' : 'Clue'} slot active for next Ctrl+V)`);
     };
     reader.readAsDataURL(file);
-  }, [activeUploadTarget]);
+    return true;
+  }, [showToast]);
 
-  const processImageUrlStringForTarget = useCallback((text, targetField = activeUploadTarget) => {
+  const processImageUrlStringForTarget = useCallback((text, targetField = activeUploadTargetRef.current) => {
     if (!text) return false;
-    const trimmed = text.trim();
-    if (
-      trimmed.startsWith('data:image/') ||
-      trimmed.startsWith('blob:') ||
-      /^https?:\/\/.*\.(png|jpg|jpeg|webp|svg|gif)(\?.*)?$/i.test(trimmed)
-    ) {
+    const trimmed = text.trim().replace(/^["']|["']$/g, '');
+    const isImageBase64 = trimmed.startsWith('data:image/') || trimmed.startsWith('blob:');
+    const isHttpUrl = /^https?:\/\/.+/i.test(trimmed);
+
+    if (isImageBase64 || isHttpUrl) {
       setDraftQ((prev) => {
         if (!prev) return prev;
         return targetField === 'clue'
           ? { ...prev, clueImage: trimmed }
           : { ...prev, answerImage: trimmed };
       });
-      showToast(`Pasted URL to ${targetField === 'clue' ? 'Clue' : 'Answer'} Image!`);
+      const nextTarget = targetField === 'clue' ? 'answer' : 'clue';
+      setActiveUploadTarget(nextTarget);
+      showToast(`✅ Pasted URL into ${targetField === 'clue' ? 'Clue' : 'Answer'} Image! (${nextTarget === 'answer' ? 'Answer' : 'Clue'} slot active for next Ctrl+V)`);
       return true;
     }
     return false;
-  }, [activeUploadTarget]);
+  }, [showToast]);
 
   const triggerFileInput = (targetField) => {
     setActiveUploadTarget(targetField);
@@ -200,52 +222,75 @@ export default function PersonalityDashboard({
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      processImageFileForTarget(file, activeUploadTarget);
+      processImageFileForTarget(file, activeUploadTargetRef.current);
     }
     if (e.target) e.target.value = '';
   };
 
-  // Clipboard paste (Ctrl+V) listener when editor is open
+  // Global Ctrl+V paste listener
   const handlePaste = useCallback((e) => {
-    const activeEl = document.activeElement;
-    const isTextInput = activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName);
+    const targetField = activeUploadTargetRef.current || 'clue';
+    let handled = false;
 
+    // 1. Files in clipboard
     const files = e.clipboardData?.files;
     if (files && files.length > 0) {
       for (let i = 0; i < files.length; i++) {
-        if (files[i].type.startsWith('image/')) {
+        if (files[i].type.startsWith('image/') || files[i].type.includes('image') || files[i].type.includes('svg')) {
           e.preventDefault();
-          processImageFileForTarget(files[i], activeUploadTarget);
+          processImageFileForTarget(files[i], targetField);
+          handled = true;
           return;
         }
       }
     }
 
+    // 2. Clipboard items (copied screenshots or image snippets)
     const items = e.clipboardData?.items;
-    if (items && items.length > 0) {
+    if (!handled && items && items.length > 0) {
       for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith('image/')) {
+        if (items[i].type.startsWith('image/') || items[i].type.includes('image') || items[i].kind === 'file') {
           const file = items[i].getAsFile();
           if (file) {
             e.preventDefault();
-            processImageFileForTarget(file, activeUploadTarget);
+            processImageFileForTarget(file, targetField);
+            handled = true;
             return;
           }
         }
       }
     }
 
-    const text = e.clipboardData?.getData('text');
-    if (!isTextInput && text && processImageUrlStringForTarget(text, activeUploadTarget)) {
+    // 3. Text image URL
+    const text = e.clipboardData?.getData('text') || e.clipboardData?.getData('text/plain');
+    if (!handled && text && processImageUrlStringForTarget(text, targetField)) {
       e.preventDefault();
     }
-  }, [activeUploadTarget, processImageFileForTarget, processImageUrlStringForTarget]);
+  }, [processImageFileForTarget, processImageUrlStringForTarget]);
 
   useEffect(() => {
-    if (!draftQ) return;
-    window.addEventListener('paste', handlePaste);
-    return () => window.removeEventListener('paste', handlePaste);
-  }, [draftQ, handlePaste]);
+    const handleGlobalPaste = (e) => {
+      let currentDraft = draftQRef.current;
+
+      // Auto-open Question #1 for edit if Ctrl+V is pressed while drawer is closed
+      if (!currentDraft) {
+        if (questionsRef.current && questionsRef.current.length > 0) {
+          const qToEdit = JSON.parse(JSON.stringify(questionsRef.current[0]));
+          setEditingIndex(0);
+          setDraftQ(qToEdit);
+          currentDraft = qToEdit;
+          draftQRef.current = qToEdit;
+        } else {
+          return;
+        }
+      }
+
+      handlePaste(e);
+    };
+
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
+  }, [handlePaste]);
 
   const handleClipboardButtonClick = async (targetField, e) => {
     e.stopPropagation();
@@ -254,7 +299,7 @@ export default function PersonalityDashboard({
       if (navigator.clipboard && navigator.clipboard.read) {
         const items = await navigator.clipboard.read();
         for (const item of items) {
-          const imageType = item.types.find((t) => t.startsWith('image/'));
+          const imageType = item.types.find((t) => t.startsWith('image/') || t.includes('image'));
           if (imageType) {
             const blob = await item.getType(imageType);
             const file = new File([blob], `pasted-${targetField}-image.png`, { type: imageType });
@@ -269,10 +314,16 @@ export default function PersonalityDashboard({
           return;
         }
       }
-      alert('No image found in clipboard. Copy an image (Ctrl+C) and press Ctrl+V to paste.');
+      const promptVal = window.prompt(`Paste image URL or Base64 string for ${targetField === 'clue' ? 'Clue' : 'Answer'} image:`);
+      if (promptVal && processImageUrlStringForTarget(promptVal, targetField)) {
+        return;
+      }
     } catch (err) {
       console.warn('Clipboard read notice:', err);
-      alert('To paste an image, press Ctrl+V on your keyboard while editing.');
+      const promptVal = window.prompt(`Paste image URL or Base64 string for ${targetField === 'clue' ? 'Clue' : 'Answer'} image (or press Ctrl+V):`);
+      if (promptVal && processImageUrlStringForTarget(promptVal, targetField)) {
+        return;
+      }
     }
   };
 

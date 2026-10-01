@@ -150,33 +150,46 @@ export default function BrandInImageDashboard({
     dragOverItemRef.current = null;
   };
 
+  const draftQRef = useRef(draftQ);
+  const questionsRef = useRef(questions);
+
+  useEffect(() => {
+    draftQRef.current = draftQ;
+  }, [draftQ]);
+
+  useEffect(() => {
+    questionsRef.current = questions;
+  }, [questions]);
+
   // Image processing (File or Data URL)
   const processImageFile = useCallback((file) => {
-    if (!file || (!file.type.startsWith('image/') && !file.type.includes('svg'))) return;
+    if (!file) return false;
+    const isImg = file.type.startsWith('image/') || file.type.includes('image') || file.type.includes('svg');
+    if (!isImg) return false;
 
     const reader = new FileReader();
     reader.onload = (evt) => {
       const dataUrl = evt.target.result;
       setDraftQ((prev) => (prev ? { ...prev, image: dataUrl } : prev));
-      showToast('Image uploaded successfully!');
+      showToast('✅ Brand Image file pasted successfully!');
     };
     reader.readAsDataURL(file);
-  }, []);
+    return true;
+  }, [showToast]);
 
   const processImageUrlString = useCallback((text) => {
     if (!text) return false;
-    const trimmed = text.trim();
-    if (
-      trimmed.startsWith('data:image/') ||
-      trimmed.startsWith('blob:') ||
-      /^https?:\/\/.*\.(png|jpg|jpeg|webp|svg|gif)(\?.*)?$/i.test(trimmed)
-    ) {
+    const trimmed = text.trim().replace(/^["']|["']$/g, '');
+    const isImageBase64 = trimmed.startsWith('data:image/') || trimmed.startsWith('blob:');
+    const isHttpUrl = /^https?:\/\/.+/i.test(trimmed);
+
+    if (isImageBase64 || isHttpUrl) {
       setDraftQ((prev) => (prev ? { ...prev, image: trimmed } : prev));
-      showToast('Image URL pasted successfully!');
+      showToast('✅ Pasted image URL successfully!');
       return true;
     }
     return false;
-  }, []);
+  }, [showToast]);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -186,47 +199,77 @@ export default function BrandInImageDashboard({
     if (e.target) e.target.value = '';
   };
 
-  // Clipboard paste (Ctrl+V) listener when editor is open
+  // Clipboard paste (Ctrl+V) listener
   const handlePaste = useCallback((e) => {
-    const activeEl = document.activeElement;
-    const isTextInput = activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName);
+    let handled = false;
 
+    // 1. Files in clipboard
     const files = e.clipboardData?.files;
     if (files && files.length > 0) {
       for (let i = 0; i < files.length; i++) {
-        if (files[i].type.startsWith('image/')) {
+        if (files[i].type.startsWith('image/') || files[i].type.includes('image') || files[i].type.includes('svg')) {
           e.preventDefault();
           processImageFile(files[i]);
+          handled = true;
           return;
         }
       }
     }
 
+    // 2. Clipboard items (copied screenshots or image snippets)
     const items = e.clipboardData?.items;
-    if (items && items.length > 0) {
+    if (!handled && items && items.length > 0) {
       for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith('image/')) {
+        if (items[i].type.startsWith('image/') || items[i].type.includes('image') || items[i].kind === 'file') {
           const file = items[i].getAsFile();
           if (file) {
             e.preventDefault();
             processImageFile(file);
+            handled = true;
             return;
           }
         }
       }
     }
 
-    const text = e.clipboardData?.getData('text');
-    if (!isTextInput && text && processImageUrlString(text)) {
-      e.preventDefault();
+    // 3. Text image URL
+    const text = e.clipboardData?.getData('text') || e.clipboardData?.getData('text/plain');
+    if (!handled && text) {
+      const activeEl = document.activeElement;
+      const isFocusedOnOptionInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') && activeEl.placeholder?.includes('Option');
+
+      if (!isFocusedOnOptionInput || text.startsWith('data:image/') || /^https?:\/\/.+/i.test(text.trim())) {
+        if (processImageUrlString(text)) {
+          e.preventDefault();
+          handled = true;
+        }
+      }
     }
   }, [processImageFile, processImageUrlString]);
 
   useEffect(() => {
-    if (!draftQ) return;
-    window.addEventListener('paste', handlePaste);
-    return () => window.removeEventListener('paste', handlePaste);
-  }, [draftQ, handlePaste]);
+    const handleGlobalPaste = (e) => {
+      let currentDraft = draftQRef.current;
+
+      // Auto-open Question #1 for edit if Ctrl+V is pressed while drawer is closed
+      if (!currentDraft) {
+        if (questionsRef.current && questionsRef.current.length > 0) {
+          const qToEdit = JSON.parse(JSON.stringify(questionsRef.current[0]));
+          setEditingIndex(0);
+          setDraftQ(qToEdit);
+          currentDraft = qToEdit;
+          draftQRef.current = qToEdit;
+        } else {
+          return;
+        }
+      }
+
+      handlePaste(e);
+    };
+
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
+  }, [handlePaste]);
 
   const handleClipboardButtonClick = async (e) => {
     e.stopPropagation();
@@ -234,7 +277,7 @@ export default function BrandInImageDashboard({
       if (navigator.clipboard && navigator.clipboard.read) {
         const items = await navigator.clipboard.read();
         for (const item of items) {
-          const imageType = item.types.find((t) => t.startsWith('image/'));
+          const imageType = item.types.find((t) => t.startsWith('image/') || t.includes('image'));
           if (imageType) {
             const blob = await item.getType(imageType);
             const file = new File([blob], 'pasted-brand-image.png', { type: imageType });
@@ -249,10 +292,16 @@ export default function BrandInImageDashboard({
           return;
         }
       }
-      alert('No image found in clipboard. Copy an image (Ctrl+C) and press Ctrl+V to paste.');
+      const promptVal = window.prompt('Paste image URL or Base64 string for Brand image:');
+      if (promptVal && processImageUrlString(promptVal)) {
+        return;
+      }
     } catch (err) {
       console.warn('Clipboard read notice:', err);
-      alert('To paste an image, press Ctrl+V on your keyboard.');
+      const promptVal = window.prompt('Paste image URL or Base64 string for Brand image (or press Ctrl+V):');
+      if (promptVal && processImageUrlString(promptVal)) {
+        return;
+      }
     }
   };
 
