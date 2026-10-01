@@ -268,7 +268,7 @@ export default function PersonalityPresentationStage({
                   width: 'auto',
                   height: 'auto',
                   objectFit: 'contain',
-                  filter: isAnswerRevealed ? 'blur(0px) scale(1)' : 'blur(32px) brightness(0.6) contrast(1.2) scale(1.1)',
+                  filter: isAnswerRevealed ? 'blur(0px) brightness(1) contrast(1) scale(1)' : 'blur(45px) brightness(0.2) contrast(1.3) scale(1.05)',
                   transition: 'filter 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)'
                 }}
               />
