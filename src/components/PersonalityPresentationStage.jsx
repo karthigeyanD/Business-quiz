@@ -253,56 +253,63 @@ export default function PersonalityPresentationStage({
           {/* Header Tag */}
           <div style={{ position: 'absolute', top: '12px', left: '16px', display: 'flex', alignItems: 'center', gap: '6px', background: isAnswerRevealed ? '#10b981' : 'rgba(239, 68, 68, 0.8)', color: isAnswerRevealed ? '#000' : '#fee2e2', padding: '4px 12px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 800, zIndex: 10 }}>
             {isAnswerRevealed ? <CheckCircle2 size={14} /> : <Lock size={14} />}
-            <span>{isAnswerRevealed ? 'ANSWER REVEALED' : 'ANSWER BLURRED'}</span>
+            <span>{isAnswerRevealed ? 'ANSWER REVEALED' : 'ANSWER HIDDEN'}</span>
           </div>
 
-          {currentQ.answerImage ? (
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
-              {/* THE ACTUAL ANSWER IMAGE: HEAVILY BLURRED WITH HEAVY CSS FILTER & NO LEAKS */}
+          {isAnswerRevealed ? (
+            currentQ.answerImage ? (
               <img
                 src={currentQ.answerImage}
                 alt="Answer Portrait"
                 style={{
                   maxWidth: '100%',
-                  maxHeight: isAnswerRevealed ? '75%' : '90%',
+                  maxHeight: '75%',
                   width: 'auto',
                   height: 'auto',
                   objectFit: 'contain',
-                  filter: isAnswerRevealed ? 'blur(0px) brightness(1) contrast(1) scale(1)' : 'blur(45px) brightness(0.2) contrast(1.3) scale(1.05)',
-                  transition: 'filter 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)'
+                  filter: 'none',
+                  animation: 'fadeIn 0.5s ease-out'
                 }}
               />
-
-              {/* Blur Shield Badge Overlay when NOT revealed */}
-              {!isAnswerRevealed && (
-                <div
-                  onClick={handleShowAnswer}
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '10px',
-                    background: 'rgba(9, 13, 22, 0.4)',
-                    cursor: 'pointer',
-                    zIndex: 5
-                  }}
-                >
-                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.2)', border: '1px solid rgba(56, 189, 248, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8' }}>
-                    <Lock size={26} />
-                  </div>
-                  <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem', fontWeight: 800, color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
-                    CLICK "SHOW ANSWER" TO REVEAL
-                  </span>
-                </div>
-              )}
-            </div>
+            ) : (
+              <div style={{ color: 'var(--text-muted)', textAlign: 'center' }}>
+                <ImageIcon size={44} />
+                <div>No Answer Image uploaded</div>
+              </div>
+            )
           ) : (
-            <div style={{ color: 'var(--text-muted)', textAlign: 'center' }}>
-              <ImageIcon size={44} />
-              <div>No Answer Image uploaded</div>
+            <div
+              onClick={handleShowAnswer}
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '16px',
+                background: '#090d16',
+                borderRadius: '14px',
+                border: '2px dashed rgba(255, 255, 255, 0.15)',
+                cursor: 'pointer'
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '5.5rem',
+                  fontFamily: 'var(--font-heading)',
+                  fontWeight: 900,
+                  color: '#38bdf8',
+                  lineHeight: 1,
+                  textShadow: '0 0 30px rgba(56, 189, 248, 0.4)'
+                }}
+              >
+                ?
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '6px 16px', borderRadius: '999px', color: '#7dd3fc', fontSize: '0.9rem', fontWeight: 800 }}>
+                <Lock size={16} />
+                <span>ANSWER HIDDEN • CLICK TO REVEAL</span>
+              </div>
             </div>
           )}
 
