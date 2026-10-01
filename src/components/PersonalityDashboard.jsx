@@ -48,9 +48,12 @@ export default function PersonalityDashboard({
   };
 
   const startEdit = (index) => {
+    const qToEdit = JSON.parse(JSON.stringify(questions[index]));
     setEditingIndex(index);
-    setDraftQ(JSON.parse(JSON.stringify(questions[index])));
+    setDraftQ(qToEdit);
+    draftQRef.current = qToEdit;
     setActiveUploadTarget('clue');
+    activeUploadTargetRef.current = 'clue';
   };
 
   const createNewQuestion = () => {
@@ -91,6 +94,7 @@ export default function PersonalityDashboard({
     onSaveQuestions(reindexed);
     setEditingIndex(null);
     setDraftQ(null);
+    draftQRef.current = null;
     showToast('Question saved!');
   };
 
@@ -103,6 +107,7 @@ export default function PersonalityDashboard({
       if (editingIndex === index) {
         setEditingIndex(null);
         setDraftQ(null);
+        draftQRef.current = null;
       }
       showToast('Question deleted');
     }
@@ -169,7 +174,7 @@ export default function PersonalityDashboard({
   }, [questions]);
 
   // Image File & Paste processing
-  const processImageFileForTarget = useCallback((file, targetField = activeUploadTargetRef.current) => {
+  const processImageFileForTarget = useCallback((file, targetField = activeUploadTargetRef.current || 'clue') => {
     if (!file) return false;
     const isImg = file.type.startsWith('image/') || file.type.includes('image') || file.type.includes('svg');
     if (!isImg) return false;
@@ -178,20 +183,24 @@ export default function PersonalityDashboard({
     reader.onload = (evt) => {
       const dataUrl = evt.target.result;
       setDraftQ((prev) => {
-        if (!prev) return prev;
-        return targetField === 'clue'
-          ? { ...prev, clueImage: dataUrl }
-          : { ...prev, answerImage: dataUrl };
+        const target = prev || draftQRef.current;
+        if (!target) return prev;
+        const updated = targetField === 'clue'
+          ? { ...target, clueImage: dataUrl }
+          : { ...target, answerImage: dataUrl };
+        draftQRef.current = updated;
+        return updated;
       });
       const nextTarget = targetField === 'clue' ? 'answer' : 'clue';
       setActiveUploadTarget(nextTarget);
+      activeUploadTargetRef.current = nextTarget;
       showToast(`✅ Uploaded ${targetField === 'clue' ? 'Clue' : 'Answer'} Image! (${nextTarget === 'answer' ? 'Answer' : 'Clue'} slot active for next Ctrl+V)`);
     };
     reader.readAsDataURL(file);
     return true;
   }, [showToast]);
 
-  const processImageUrlStringForTarget = useCallback((text, targetField = activeUploadTargetRef.current) => {
+  const processImageUrlStringForTarget = useCallback((text, targetField = activeUploadTargetRef.current || 'clue') => {
     if (!text) return false;
     const trimmed = text.trim().replace(/^["']|["']$/g, '');
     const isImageBase64 = trimmed.startsWith('data:image/') || trimmed.startsWith('blob:');
@@ -199,13 +208,17 @@ export default function PersonalityDashboard({
 
     if (isImageBase64 || isHttpUrl) {
       setDraftQ((prev) => {
-        if (!prev) return prev;
-        return targetField === 'clue'
-          ? { ...prev, clueImage: trimmed }
-          : { ...prev, answerImage: trimmed };
+        const target = prev || draftQRef.current;
+        if (!target) return prev;
+        const updated = targetField === 'clue'
+          ? { ...target, clueImage: trimmed }
+          : { ...target, answerImage: trimmed };
+        draftQRef.current = updated;
+        return updated;
       });
       const nextTarget = targetField === 'clue' ? 'answer' : 'clue';
       setActiveUploadTarget(nextTarget);
+      activeUploadTargetRef.current = nextTarget;
       showToast(`✅ Pasted URL into ${targetField === 'clue' ? 'Clue' : 'Answer'} Image! (${nextTarget === 'answer' ? 'Answer' : 'Clue'} slot active for next Ctrl+V)`);
       return true;
     }
@@ -214,6 +227,7 @@ export default function PersonalityDashboard({
 
   const triggerFileInput = (targetField) => {
     setActiveUploadTarget(targetField);
+    activeUploadTargetRef.current = targetField;
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
@@ -222,15 +236,21 @@ export default function PersonalityDashboard({
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      processImageFileForTarget(file, activeUploadTargetRef.current);
+      processImageFileForTarget(file, activeUploadTargetRef.current || 'clue');
     }
     if (e.target) e.target.value = '';
   };
 
-  // Global Ctrl+V paste listener
+  // Global & Container Ctrl+V paste listener
   const handlePaste = useCallback((e) => {
     const targetField = activeUploadTargetRef.current || 'clue';
     let handled = false;
+
+    const activeEl = document.activeElement;
+    const isTextInput = activeEl && (
+      activeEl.tagName === 'TEXTAREA' ||
+      (activeEl.tagName === 'INPUT' && (activeEl.type === 'text' || activeEl.type === 'search' || !activeEl.type))
+    );
 
     // 1. Files in clipboard
     const files = e.clipboardData?.files;
@@ -261,10 +281,22 @@ export default function PersonalityDashboard({
       }
     }
 
-    // 3. Text image URL
+    // 3. Text image URL or Base64 string
     const text = e.clipboardData?.getData('text') || e.clipboardData?.getData('text/plain');
-    if (!handled && text && processImageUrlStringForTarget(text, targetField)) {
-      e.preventDefault();
+    if (!handled && text) {
+      const trimmed = text.trim().replace(/^["']|["']$/g, '');
+      const isImageBase64 = trimmed.startsWith('data:image/') || trimmed.startsWith('blob:');
+      const isHttpUrl = /^https?:\/\/.+/i.test(trimmed);
+      const isImageExtension = /\.(jpeg|jpg|gif|png|webp|svg|bmp|avif)($|\?)/i.test(trimmed);
+
+      const shouldInterceptAsImage = isImageBase64 || (isTextInput ? (isHttpUrl && isImageExtension) : isHttpUrl);
+
+      if (shouldInterceptAsImage) {
+        if (processImageUrlStringForTarget(text, targetField)) {
+          e.preventDefault();
+          handled = true;
+        }
+      }
     }
   }, [processImageFileForTarget, processImageUrlStringForTarget]);
 
@@ -295,6 +327,7 @@ export default function PersonalityDashboard({
   const handleClipboardButtonClick = async (targetField, e) => {
     e.stopPropagation();
     setActiveUploadTarget(targetField);
+    activeUploadTargetRef.current = targetField;
     try {
       if (navigator.clipboard && navigator.clipboard.read) {
         const items = await navigator.clipboard.read();
@@ -487,7 +520,7 @@ export default function PersonalityDashboard({
                 className="custom-select"
                 style={{ width: '100%', fontSize: '0.95rem' }}
                 value={draftQ.title}
-                onChange={(e) => setDraftQ({ ...draftQ, title: e.target.value })}
+                onChange={(e) => setDraftQ((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
                 placeholder="e.g. Question 1: Identify this business personality"
               />
             </div>
@@ -502,7 +535,7 @@ export default function PersonalityDashboard({
                 className="custom-select"
                 style={{ width: '100%', fontSize: '1.05rem', fontWeight: 700, color: '#fff', borderColor: 'rgba(56, 189, 248, 0.4)' }}
                 value={draftQ.name}
-                onChange={(e) => setDraftQ({ ...draftQ, name: e.target.value })}
+                onChange={(e) => setDraftQ((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
                 placeholder="e.g. Ratan Tata"
               />
             </div>
@@ -515,10 +548,27 @@ export default function PersonalityDashboard({
                   <label className="setting-name" style={{ fontSize: '0.82rem', color: '#7dd3fc', fontWeight: 700, marginBottom: 0 }}>
                     1. Clue Image (Visible)
                   </label>
+                  {activeUploadTarget === 'clue' && (
+                    <span style={{ fontSize: '0.68rem', color: '#38bdf8', fontWeight: 700, background: 'rgba(56, 189, 248, 0.15)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                      🎯 Active for Ctrl+V
+                    </span>
+                  )}
                 </div>
 
                 <div
-                  onClick={() => setActiveUploadTarget('clue')}
+                  tabIndex={0}
+                  onClick={() => {
+                    setActiveUploadTarget('clue');
+                    activeUploadTargetRef.current = 'clue';
+                  }}
+                  onFocus={() => {
+                    setActiveUploadTarget('clue');
+                    activeUploadTargetRef.current = 'clue';
+                  }}
+                  onPaste={(e) => {
+                    e.stopPropagation();
+                    handlePaste(e);
+                  }}
                   onDragOver={(e) => { e.preventDefault(); setDragOverTarget('clue'); }}
                   onDragLeave={() => setDragOverTarget(null)}
                   onDrop={(e) => {
@@ -543,7 +593,8 @@ export default function PersonalityDashboard({
                     justifyContent: 'center',
                     position: 'relative',
                     overflow: 'hidden',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    outline: 'none'
                   }}
                 >
                   {draftQ.clueImage ? (
@@ -582,7 +633,7 @@ export default function PersonalityDashboard({
                         <button
                           type="button"
                           className="action-icon-btn danger"
-                          onClick={(e) => { e.stopPropagation(); setDraftQ({ ...draftQ, clueImage: '' }); }}
+                          onClick={(e) => { e.stopPropagation(); setDraftQ((prev) => (prev ? { ...prev, clueImage: '' } : prev)); }}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -612,10 +663,27 @@ export default function PersonalityDashboard({
                   <label className="setting-name" style={{ fontSize: '0.82rem', color: '#4ade80', fontWeight: 700, marginBottom: 0 }}>
                     2. Answer Image (Blurred Initially)
                   </label>
+                  {activeUploadTarget === 'answer' && (
+                    <span style={{ fontSize: '0.68rem', color: '#4ade80', fontWeight: 700, background: 'rgba(74, 222, 128, 0.15)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(74, 222, 128, 0.3)' }}>
+                      🎯 Active for Ctrl+V
+                    </span>
+                  )}
                 </div>
 
                 <div
-                  onClick={() => setActiveUploadTarget('answer')}
+                  tabIndex={0}
+                  onClick={() => {
+                    setActiveUploadTarget('answer');
+                    activeUploadTargetRef.current = 'answer';
+                  }}
+                  onFocus={() => {
+                    setActiveUploadTarget('answer');
+                    activeUploadTargetRef.current = 'answer';
+                  }}
+                  onPaste={(e) => {
+                    e.stopPropagation();
+                    handlePaste(e);
+                  }}
                   onDragOver={(e) => { e.preventDefault(); setDragOverTarget('answer'); }}
                   onDragLeave={() => setDragOverTarget(null)}
                   onDrop={(e) => {
@@ -640,7 +708,8 @@ export default function PersonalityDashboard({
                     justifyContent: 'center',
                     position: 'relative',
                     overflow: 'hidden',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    outline: 'none'
                   }}
                 >
                   {draftQ.answerImage ? (
@@ -679,7 +748,7 @@ export default function PersonalityDashboard({
                         <button
                           type="button"
                           className="action-icon-btn danger"
-                          onClick={(e) => { e.stopPropagation(); setDraftQ({ ...draftQ, answerImage: '' }); }}
+                          onClick={(e) => { e.stopPropagation(); setDraftQ((prev) => (prev ? { ...prev, answerImage: '' } : prev)); }}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -711,7 +780,7 @@ export default function PersonalityDashboard({
                 className="custom-select"
                 style={{ width: '100%', height: '60px', resize: 'none' }}
                 value={draftQ.explanation || ''}
-                onChange={(e) => setDraftQ({ ...draftQ, explanation: e.target.value })}
+                onChange={(e) => setDraftQ((prev) => (prev ? { ...prev, explanation: e.target.value } : prev))}
                 placeholder="Details revealed along with the personality's name..."
               />
             </div>
