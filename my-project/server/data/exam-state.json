@@ -1,0 +1,72 @@
+{
+  "config": {
+    "status": "setup",
+    "duration": 900,
+    "startTime": null,
+    "pauseTime": null,
+    "pausedDuration": 0,
+    "answerKeySet": true,
+    "registrationOpen": false,
+    "examAccessEnabled": true,
+    "deviceLimit": 1,
+    "randomizeQuestions": false,
+    "randomizeOptions": false,
+    "negativeMarking": false,
+    "negativePoints": 0,
+    "startMode": "synchronized"
+  },
+  "answerKey": {
+    "1": "B",
+    "2": "B",
+    "3": "A",
+    "4": "A",
+    "5": "B",
+    "6": "A",
+    "7": "D",
+    "8": "A",
+    "9": "A",
+    "10": "B",
+    "11": "B",
+    "12": "B",
+    "13": "B",
+    "14": "B",
+    "15": "A"
+  },
+  "teams": [
+    {
+      "id": "51c54a70-1919-4324-94b6-0b57bc262578",
+      "teamNumber": 1,
+      "name": "lion",
+      "member1": "Niti",
+      "member2": "Viki",
+      "college": "global",
+      "accessCode": "4AF7D0"
+    }
+  ],
+  "sessions": {
+    "51c54a70-1919-4324-94b6-0b57bc262578": {
+      "teamId": "51c54a70-1919-4324-94b6-0b57bc262578",
+      "teamNumber": 1,
+      "teamName": "lion",
+      "accessCode": "4AF7D0",
+      "token": null,
+      "status": "not_started",
+      "loginTime": null,
+      "examStartTime": null,
+      "submitTime": null,
+      "answers": {},
+      "score": null,
+      "correctCount": null,
+      "incorrectCount": null,
+      "unansweredCount": null,
+      "deviceInfo": null,
+      "lastSeen": null,
+      "isConnected": false,
+      "alertCount": 0,
+      "extraTime": 0,
+      "reviewStatus": "none"
+    }
+  },
+  "activityLog": [],
+  "graded": true
+}

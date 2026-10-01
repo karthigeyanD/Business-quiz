@@ -1,16 +1,29 @@
-# React + Vite
+# Business Quiz Application - Annai Mira College of Engineering and Technology
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Professional 16:9 Projector-Friendly Quiz Event Presentation Suite.
 
-Currently, two official plugins are available:
+## Quiz Rounds
+- **Round 2 — Logo Identification**
+- **Round 4 — Personality Identification**
+- **Round 5 — Brand in Image**
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Technical Team
+- **Karthigeyan D**
+- **Keerthivasan K**
 
-## React Compiler
+## Features
+- **Opening Presentation Screen**: College badge, quiz title, timing, round selection cards, and technical team box.
+- **Interactive Presentation Stages**: Timers, answer reveals, blurred image reveals, and Time's Up visual overlay.
+- **Organizer Dashboard**: Full quiz question management with drag & drop image uploads, clipboard pasting, and persistent IndexedDB storage.
+- **Egg Timer Tool**: Visual egg trembling and cracking timer for supporting quiz activities.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Getting Started
+```bash
+npm install
+npm run dev
+```
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Build for production:
+```bash
+npm run build
+```
