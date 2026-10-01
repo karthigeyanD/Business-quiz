@@ -191,10 +191,9 @@ export default function PersonalityDashboard({
         draftQRef.current = updated;
         return updated;
       });
-      const nextTarget = targetField === 'clue' ? 'answer' : 'clue';
-      setActiveUploadTarget(nextTarget);
-      activeUploadTargetRef.current = nextTarget;
-      showToast(`✅ Uploaded ${targetField === 'clue' ? 'Clue' : 'Answer'} Image! (${nextTarget === 'answer' ? 'Answer' : 'Clue'} slot active for next Ctrl+V)`);
+      setActiveUploadTarget(targetField);
+      activeUploadTargetRef.current = targetField;
+      showToast(`✅ Loaded ${targetField === 'clue' ? 'Clue' : 'Answer'} Image!`);
     };
     reader.readAsDataURL(file);
     return true;
@@ -216,10 +215,9 @@ export default function PersonalityDashboard({
         draftQRef.current = updated;
         return updated;
       });
-      const nextTarget = targetField === 'clue' ? 'answer' : 'clue';
-      setActiveUploadTarget(nextTarget);
-      activeUploadTargetRef.current = nextTarget;
-      showToast(`✅ Pasted URL into ${targetField === 'clue' ? 'Clue' : 'Answer'} Image! (${nextTarget === 'answer' ? 'Answer' : 'Clue'} slot active for next Ctrl+V)`);
+      setActiveUploadTarget(targetField);
+      activeUploadTargetRef.current = targetField;
+      showToast(`✅ Loaded URL into ${targetField === 'clue' ? 'Clue' : 'Answer'} Image!`);
       return true;
     }
     return false;
@@ -241,9 +239,9 @@ export default function PersonalityDashboard({
     if (e.target) e.target.value = '';
   };
 
-  // Global & Container Ctrl+V paste listener
-  const handlePaste = useCallback((e) => {
-    const targetField = activeUploadTargetRef.current || 'clue';
+  // Field-specific & Global Ctrl+V paste listener
+  const handlePasteForTarget = useCallback((e, specificTarget = null) => {
+    const targetField = specificTarget || activeUploadTargetRef.current || 'clue';
     let handled = false;
 
     const activeEl = document.activeElement;
@@ -252,25 +250,13 @@ export default function PersonalityDashboard({
       (activeEl.tagName === 'INPUT' && (activeEl.type === 'text' || activeEl.type === 'search' || !activeEl.type))
     );
 
-    // 1. Files in clipboard
-    const files = e.clipboardData?.files;
-    if (files && files.length > 0) {
-      for (let i = 0; i < files.length; i++) {
-        if (files[i].type.startsWith('image/') || files[i].type.includes('image') || files[i].type.includes('svg')) {
-          e.preventDefault();
-          processImageFileForTarget(files[i], targetField);
-          handled = true;
-          return;
-        }
-      }
-    }
-
-    // 2. Clipboard items (copied screenshots or image snippets)
+    // 1. Check clipboard items for image format (event.clipboardData.items)
     const items = e.clipboardData?.items;
-    if (!handled && items && items.length > 0) {
+    if (items && items.length > 0) {
       for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith('image/') || items[i].type.includes('image') || items[i].kind === 'file') {
-          const file = items[i].getAsFile();
+        const item = items[i];
+        if (item.type.startsWith('image/') || item.type.includes('image') || item.kind === 'file') {
+          const file = item.getAsFile();
           if (file) {
             e.preventDefault();
             processImageFileForTarget(file, targetField);
@@ -281,7 +267,20 @@ export default function PersonalityDashboard({
       }
     }
 
-    // 3. Text image URL or Base64 string
+    // 2. Check files array in clipboard (event.clipboardData.files)
+    const files = e.clipboardData?.files;
+    if (!handled && files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        if (files[i].type.startsWith('image/') || files[i].type.includes('image') || files[i].type.includes('svg')) {
+          e.preventDefault();
+          processImageFileForTarget(files[i], targetField);
+          handled = true;
+          return;
+        }
+      }
+    }
+
+    // 3. Check text content for image Base64 or image URL
     const text = e.clipboardData?.getData('text') || e.clipboardData?.getData('text/plain');
     if (!handled && text) {
       const trimmed = text.trim().replace(/^["']|["']$/g, '');
@@ -317,12 +316,12 @@ export default function PersonalityDashboard({
         }
       }
 
-      handlePaste(e);
+      handlePasteForTarget(e, activeUploadTargetRef.current || 'clue');
     };
 
     window.addEventListener('paste', handleGlobalPaste);
     return () => window.removeEventListener('paste', handleGlobalPaste);
-  }, [handlePaste]);
+  }, [handlePasteForTarget]);
 
   const handleClipboardButtonClick = async (targetField, e) => {
     e.stopPropagation();
@@ -567,7 +566,7 @@ export default function PersonalityDashboard({
                   }}
                   onPaste={(e) => {
                     e.stopPropagation();
-                    handlePaste(e);
+                    handlePasteForTarget(e, 'clue');
                   }}
                   onDragOver={(e) => { e.preventDefault(); setDragOverTarget('clue'); }}
                   onDragLeave={() => setDragOverTarget(null)}
@@ -682,7 +681,7 @@ export default function PersonalityDashboard({
                   }}
                   onPaste={(e) => {
                     e.stopPropagation();
-                    handlePaste(e);
+                    handlePasteForTarget(e, 'answer');
                   }}
                   onDragOver={(e) => { e.preventDefault(); setDragOverTarget('answer'); }}
                   onDragLeave={() => setDragOverTarget(null)}
