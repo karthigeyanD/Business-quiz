@@ -19,6 +19,22 @@ export default function QuizDashboard({
   const [dragOverIdx, setDragOverIdx] = useState(null);
   const [pasteToast, setPasteToast] = useState(null);
 
+  const draftQRef = useRef(draftQ);
+  const activeLogoIndexRef = useRef(activeLogoIndex);
+  const questionsRef = useRef(questions);
+
+  useEffect(() => {
+    draftQRef.current = draftQ;
+  }, [draftQ]);
+
+  useEffect(() => {
+    activeLogoIndexRef.current = activeLogoIndex;
+  }, [activeLogoIndex]);
+
+  useEffect(() => {
+    questionsRef.current = questions;
+  }, [questions]);
+
   const startEdit = (index) => {
     setEditingIndex(index);
     setDraftQ(JSON.parse(JSON.stringify(questions[index])));
@@ -91,15 +107,16 @@ export default function QuizDashboard({
 
   const handleLogoFileChange = (e) => {
     const file = e.target.files?.[0];
-    if (file && draftQ) {
-      processImageFile(file, activeLogoIndex);
+    if (file) {
+      processImageFile(file, activeLogoIndexRef.current);
     }
-    // Reset file input so re-selecting the same file triggers onChange
     if (e.target) e.target.value = '';
   };
 
   const processImageFile = useCallback((file, logoIdx) => {
-    if (!file || (!file.type.startsWith('image/') && !file.type.includes('svg'))) return false;
+    if (!file) return false;
+    const isImg = file.type.startsWith('image/') || file.type.includes('image') || file.type.includes('svg');
+    if (!isImg) return false;
 
     const reader = new FileReader();
     reader.onload = (evt) => {
@@ -110,9 +127,10 @@ export default function QuizDashboard({
         newLogos[logoIdx] = dataUrl;
         return { ...prev, logos: newLogos };
       });
-      setActiveLogoIndex((logoIdx + 1) % 4);
-      setPasteToast(`Image set for Logo #${logoIdx + 1}`);
-      setTimeout(() => setPasteToast(null), 3000);
+      const nextIdx = (logoIdx + 1) % 4;
+      setActiveLogoIndex(nextIdx);
+      setPasteToast(`✅ Image file set for Logo #${logoIdx + 1}! (Logo #${nextIdx + 1} active for next Ctrl+V)`);
+      setTimeout(() => setPasteToast(null), 3500);
     };
     reader.readAsDataURL(file);
     return true;
@@ -120,34 +138,37 @@ export default function QuizDashboard({
 
   const processImageUrlString = useCallback((text, logoIdx) => {
     if (!text) return false;
-    const trimmed = text.trim();
-    if (
-      trimmed.startsWith('data:image/') ||
-      trimmed.startsWith('blob:') ||
-      /^https?:\/\/.*\.(png|jpg|jpeg|webp|svg|gif)(\?.*)?$/i.test(trimmed)
-    ) {
+    const trimmed = text.trim().replace(/^["']|["']$/g, '');
+    const isImageBase64 = trimmed.startsWith('data:image/') || trimmed.startsWith('blob:');
+    const isHttpUrl = /^https?:\/\/.+/i.test(trimmed);
+
+    if (isImageBase64 || isHttpUrl) {
       setDraftQ((prev) => {
         if (!prev) return prev;
         const newLogos = [...prev.logos];
         newLogos[logoIdx] = trimmed;
         return { ...prev, logos: newLogos };
       });
-      setActiveLogoIndex((logoIdx + 1) % 4);
-      setPasteToast(`Pasted image URL into Logo #${logoIdx + 1}`);
-      setTimeout(() => setPasteToast(null), 3000);
+      const nextIdx = (logoIdx + 1) % 4;
+      setActiveLogoIndex(nextIdx);
+      setPasteToast(`✅ Pasted image into Logo #${logoIdx + 1}! (Logo #${nextIdx + 1} active for next Ctrl+V)`);
+      setTimeout(() => setPasteToast(null), 3500);
       return true;
     }
     return false;
   }, []);
 
-  const handleLogoPaste = useCallback((e, targetIdx = activeLogoIndex) => {
+  const handleLogoPaste = useCallback((e, targetIdx = activeLogoIndexRef.current) => {
+    let handled = false;
+
     // 1. Files in clipboard
     const files = e.clipboardData?.files;
     if (files && files.length > 0) {
       for (let i = 0; i < files.length; i++) {
-        if (files[i].type.startsWith('image/')) {
+        if (files[i].type.startsWith('image/') || files[i].type.includes('image') || files[i].type.includes('svg')) {
           e.preventDefault();
           processImageFile(files[i], targetIdx);
+          handled = true;
           return;
         }
       }
@@ -155,13 +176,14 @@ export default function QuizDashboard({
 
     // 2. Clipboard items (e.g. copied image snippets/screenshots)
     const items = e.clipboardData?.items;
-    if (items && items.length > 0) {
+    if (!handled && items && items.length > 0) {
       for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith('image/')) {
+        if (items[i].type.startsWith('image/') || items[i].type.includes('image') || items[i].kind === 'file') {
           const file = items[i].getAsFile();
           if (file) {
             e.preventDefault();
             processImageFile(file, targetIdx);
+            handled = true;
             return;
           }
         }
@@ -169,57 +191,37 @@ export default function QuizDashboard({
     }
 
     // 3. Text image URL
-    const text = e.clipboardData?.getData('text');
-    if (text && processImageUrlString(text, targetIdx)) {
+    const text = e.clipboardData?.getData('text') || e.clipboardData?.getData('text/plain');
+    if (!handled && text && processImageUrlString(text, targetIdx)) {
       e.preventDefault();
     }
-  }, [activeLogoIndex, processImageFile, processImageUrlString]);
+  }, [processImageFile, processImageUrlString]);
 
-  // Global paste handler when draftQ (question editor drawer) is active
+  // Global Ctrl+V paste handler
   useEffect(() => {
-    if (!draftQ) return;
-
     const handleGlobalPaste = (e) => {
-      const activeEl = document.activeElement;
-      const isTextInput = activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName);
+      let currentDraft = draftQRef.current;
 
-      // Check if clipboard contains an image file or item
-      const files = e.clipboardData?.files;
-      const items = e.clipboardData?.items;
-      let hasImageFile = false;
-
-      if (files && files.length > 0) {
-        for (let i = 0; i < files.length; i++) {
-          if (files[i].type.startsWith('image/')) {
-            hasImageFile = true;
-            break;
-          }
-        }
-      }
-      if (!hasImageFile && items) {
-        for (let i = 0; i < items.length; i++) {
-          if (items[i].type.startsWith('image/')) {
-            hasImageFile = true;
-            break;
-          }
+      // If no question is currently open for edit, auto-edit question #1 when Ctrl+V is pressed with an image
+      if (!currentDraft) {
+        if (questionsRef.current && questionsRef.current.length > 0) {
+          const qToEdit = JSON.parse(JSON.stringify(questionsRef.current[0]));
+          setEditingIndex(0);
+          setDraftQ(qToEdit);
+          currentDraft = qToEdit;
+          draftQRef.current = qToEdit;
+        } else {
+          return;
         }
       }
 
-      // If clipboard has an actual image file, process it into active logo slot even if focused on a text input
-      if (hasImageFile) {
-        handleLogoPaste(e, activeLogoIndex);
-        return;
-      }
-
-      // If plain text was pasted and user is NOT typing in a text field, check if text is an image URL
-      if (!isTextInput) {
-        handleLogoPaste(e, activeLogoIndex);
-      }
+      const targetLogoIdx = activeLogoIndexRef.current ?? 0;
+      handleLogoPaste(e, targetLogoIdx);
     };
 
     window.addEventListener('paste', handleGlobalPaste);
     return () => window.removeEventListener('paste', handleGlobalPaste);
-  }, [draftQ, activeLogoIndex, handleLogoPaste]);
+  }, [handleLogoPaste]);
 
   const handleClipboardButtonClick = async (logoIdx, e) => {
     e.stopPropagation();
@@ -228,7 +230,7 @@ export default function QuizDashboard({
       if (navigator.clipboard && navigator.clipboard.read) {
         const items = await navigator.clipboard.read();
         for (const item of items) {
-          const imageType = item.types.find((t) => t.startsWith('image/'));
+          const imageType = item.types.find((t) => t.startsWith('image/') || t.includes('image'));
           if (imageType) {
             const blob = await item.getType(imageType);
             const file = new File([blob], 'pasted-image.png', { type: imageType });
@@ -243,10 +245,16 @@ export default function QuizDashboard({
           return;
         }
       }
-      alert('No image found in your clipboard. Copy an image (Ctrl+C) and press Ctrl+V to paste into the selected slot.');
+      const promptVal = window.prompt(`Paste image URL or Base64 data string for Logo #${logoIdx + 1}:`);
+      if (promptVal && processImageUrlString(promptVal, logoIdx)) {
+        return;
+      }
     } catch (err) {
       console.warn('Clipboard API read error:', err);
-      alert('To paste an image, press Ctrl+V on your keyboard while selecting this logo slot.');
+      const promptVal = window.prompt(`Paste image URL or Base64 data string for Logo #${logoIdx + 1} (or press Ctrl+V):`);
+      if (promptVal && processImageUrlString(promptVal, logoIdx)) {
+        return;
+      }
     }
   };
 
